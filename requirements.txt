@@ -1,0 +1,15 @@
+langgraph
+psycopg2-binary
+boto3
+pinecone
+fastapi
+openai
+mistralai
+google-generativeai
+dotenv
+pydantic
+uvicorn
+mangum
+passlib
+python-jose
+pytest
