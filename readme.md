@@ -23,10 +23,13 @@ Knowledge Graph Reasoning:
 
 Confidence: 87% | Time saved: 2.5hrs | Energy saved: High
 ```
+
+## Methodology
 1. Servers stored in rdbms.
 2. Query building considering all capabilities.
 3. RAG for searching the most relevant tool calls over a threshold.
-4. 
+4. Tool calls over query + user info.
+5. Display LLM(tool results).
 
 
 ## RAG
@@ -45,5 +48,5 @@ Confidence: 87% | Time saved: 2.5hrs | Energy saved: High
         1. Cosine 
         2. Euclidean 
 
-- Why Dense / semantic search?
+Why Dense / semantic search?
 The advantage is that it captures meaning — "cancel my booking" matches a tool described as "void a reservation" even with zero shared words.
