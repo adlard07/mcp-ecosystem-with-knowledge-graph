@@ -13,3 +13,4 @@ mangum
 passlib
 python-jose
 pytest
+google-genai

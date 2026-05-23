@@ -144,7 +144,7 @@ class DatabaseServices:
 
     # ── sessions ──────────────────────────────────────────────────────
 
-    def save_session(self, session_info: SessionInfo) -> None:
+    def create_session(self, session_info: CreateSession) -> None:
         self.dbi.put_item(self.session_table, session_info.model_dump())
 
     def get_session(self, session_id: Session) -> Optional[dict]:

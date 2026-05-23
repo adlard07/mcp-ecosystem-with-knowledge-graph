@@ -6,6 +6,7 @@ from google import genai
 from mistralai.client import Mistral
 from openai import OpenAI
 
+from src.models.chatbot import ChatState
 from utils.utils import logging
 
 load_dotenv(override=True)
@@ -21,75 +22,178 @@ class GenerateResponse:
         self.model_name = os.getenv("MODEL_NAME", "mistral-small-latest")
 
         self.models = {
-            # Gemini — free tier (stable)
             "gemini-2.5-pro",
             "gemini-2.5-flash",
             "gemini-2.5-flash-lite",
-            # Gemini — free tier (preview, restrictive limits)
             "gemini-3-flash-preview",
             "gemini-3.1-flash-lite-preview",
             "gemini-3.1-flash-live-preview",
             "gemini-3.1-pro-preview",
-            # Mistral — all available on free Experiment plan
-            "mistral-small-latest",  # Small 4 (open, 24B, hybrid instruct/reasoning/coding)
-            "mistral-large-latest",  # Large 3 (open, multimodal)
-            "mistral-medium-latest",  # Medium 3.1 (premier, frontier multimodal)
-            "magistral-small-latest",  # Small reasoning model
-            "magistral-medium-latest",  # Frontier reasoning model
-            "ministral-3b-latest",  # 3B edge model
-            "ministral-8b-latest",  # 8B edge model
-            "ministral-14b-latest",  # 14B multimodal
-            "codestral-latest",  # Code completion specialist
-            "open-mistral-nemo",  # Nemo 12B (multilingual)
-            "devstral-small-latest",  # Code agent model
-            # OpenAI
+
+            "mistral-small-latest",
+            "mistral-large-latest",
+            "mistral-medium-latest",
+            "magistral-small-latest",
+            "magistral-medium-latest",
+            "ministral-3b-latest",
+            "ministral-8b-latest",
+            "ministral-14b-latest",
+            "codestral-latest",
+            "open-mistral-nemo",
+            "devstral-small-latest",
+
             "gpt-4o-mini",
             "gpt-4o",
             "gpt-4o-nano",
         }
 
-    def generate_gemini_response(self, user_query):
+        self.system_prompt = self._load_prompt("prompts/agent_system_prompt.system.md")
+        self.user_prompt = self._load_prompt("prompts/agent_user_prompt.user.md")
+
+
+    def _load_prompt(self, path: str) -> str:
+        try:
+            with open(path, "r", encoding="utf-8") as file:
+                return file.read()
+        except FileNotFoundError:
+            logging.error(f"Prompt file not found: {path}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Prompt file not found: {path}",
+            )
+
+
+    def __call__(self, state: ChatState) -> dict:
+        query = state.get("query")
+        model = state.get("model")
+
+        if not query:
+            raise HTTPException(status_code=400, detail="Query is required")
+
+        chat_state = state.get("chat_state", [])
+
+        response = self.generate_response(
+            user_query=query,
+            model=model,
+            messages=chat_state,
+        )
+
+        updated_chat_state = [
+            *chat_state,
+            {"role": "assistant", "content": response},
+        ]
+
+        return {
+            "response": response,
+            "chat_state": updated_chat_state,
+        }
+
+
+    def build_messages(
+        self,
+        user_query: str,
+        messages: list[dict[str, str]] | None = None,
+    ) -> list[dict[str, str]]:
+        messages = messages or []
+
+        formatted_user_prompt = self.user_prompt.format(
+            user_query=user_query,
+        )
+
+        conversation_without_latest_user = messages[:-1]
+
+        return [
+            {"role": "system", "content": self.system_prompt},
+            *conversation_without_latest_user,
+            {"role": "user", "content": formatted_user_prompt},
+        ]
+
+
+    def generate_gemini_response(
+        self,
+        messages: list[dict[str, str]],
+        model: str,
+    ):
         try:
             client = genai.Client(api_key=self.gemini_api_key)
+
+            system_instruction = messages[0]["content"]
+            conversation = messages[1:]
+
+            contents = []
+            for message in conversation:
+                role = "model" if message["role"] == "assistant" else "user"
+                contents.append(
+                    {
+                        "role": role,
+                        "parts": [{"text": message["content"]}],
+                    }
+                )
+
             response = client.models.generate_content(
-                model=self.model_name, contents=user_query
+                model=model,
+                contents=contents,
+                config={
+                    "system_instruction": system_instruction,
+                },
             )
+
             return response.text
+
         except Exception as e:
             logging.error(f"Error generating Gemini response: {e}")
             raise HTTPException(
-                status_code=500, detail="Error generating Gemini response"
+                status_code=500,
+                detail="Error generating Gemini response",
             )
 
-    def generate_openai_response(self, user_query, model="gpt-4o-mini"):
+
+    def generate_openai_response(
+        self,
+        messages: list[dict[str, str]],
+        model: str = "gpt-4o-mini",
+    ):
         try:
             client = OpenAI(api_key=self.openai_api_key)
             response = client.chat.completions.create(
                 model=model,
-                messages=[{"role": "user", "content": user_query}],
+                messages=messages,
             )
             return response.choices[0].message.content
         except Exception as e:
             logging.error(f"Error generating OpenAI response: {e}")
             raise HTTPException(
-                status_code=500, detail="Error generating OpenAI response"
+                status_code=500,
+                detail="Error generating OpenAI response",
             )
 
-    def generate_mistral_response(self, user_query, model="mistral-small-latest"):
+
+    def generate_mistral_response(
+        self,
+        messages: list[dict[str, str]],
+        model: str = "mistral-small-latest",
+    ):
         try:
             client = Mistral(api_key=self.mistral_api_key)
             response = client.chat.complete(
                 model=model,
-                messages=[{"role": "user", "content": user_query}],
+                messages=messages,
             )
             return response.choices[0].message.content
         except Exception as e:
             logging.error(f"Error generating Mistral response: {e}")
             raise HTTPException(
-                status_code=500, detail="Error generating Mistral response"
+                status_code=500,
+                detail="Error generating Mistral response",
             )
 
-    def generate_response(self, user_query, model=None):
+
+    def generate_response(
+        self,
+        user_query: str,
+        model: str | None = None,
+        messages: list[dict[str, str]] | None = None,
+    ):
         model = model or self.model_name
 
         if model not in self.models:
@@ -98,13 +202,18 @@ class GenerateResponse:
                 detail=f"Model '{model}' not supported. Available: {sorted(self.models)}",
             )
 
+        provider_messages = self.build_messages(
+            user_query=user_query,
+            messages=messages,
+        )
+
         if model.startswith("gemini"):
-            return self.generate_gemini_response(user_query)
+            return self.generate_gemini_response(provider_messages, model=model)
 
-        elif model.startswith("gpt"):
-            return self.generate_openai_response(user_query, model=model)
+        if model.startswith("gpt"):
+            return self.generate_openai_response(provider_messages, model=model)
 
-        elif (
+        if (
             model.startswith("mistral")
             or model.startswith("magistral")
             or model.startswith("ministral")
@@ -112,22 +221,9 @@ class GenerateResponse:
             or model.startswith("open-mistral-nemo")
             or model.startswith("devstral")
         ):
-            return self.generate_mistral_response(user_query, model=model)
+            return self.generate_mistral_response(provider_messages, model=model)
 
-        else:
-            raise HTTPException(
-                status_code=400, detail=f"Model '{model}' not supported."
-            )
-
-
-if __name__ == "__main__":
-    generator = GenerateResponse()
-    user_query = "What is the capital of France?"
-
-    print("\n" + "=" * 60)
-    try:
-        response = generator.generate_response(user_query)
-        print(response)
-    except Exception as e:
-        print(f"FAIL — {e}")
-    print("\n" + "=" * 60)
+        raise HTTPException(
+            status_code=400,
+            detail=f"Model '{model}' not supported.",
+        )
