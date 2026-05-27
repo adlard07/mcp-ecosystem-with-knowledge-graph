@@ -1,7 +1,7 @@
 from langgraph.graph import StateGraph
 
 from src.models.chatbot import OpenChatRequest, ChatState, ChatMessage
-from src.agent.generate import GenerateResponse
+from src.genai.generate import GenerateResponse
 
 
 class ChatAgent:

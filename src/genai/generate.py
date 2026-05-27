@@ -70,43 +70,33 @@ class GenerateResponse:
         if not query:
             raise HTTPException(status_code=400, detail="Query is required")
 
-        chat_state = state.get("chat_state", [])
-
         response = self.generate_response(
             user_query=query,
             model=model,
-            messages=chat_state,
         )
 
-        updated_chat_state = [
-            *chat_state,
-            {"role": "assistant", "content": response},
-        ]
-
-        return {
-            "response": response,
-            "chat_state": updated_chat_state,
-        }
+        return {"response": response}
 
 
-    def build_messages(
-        self,
-        user_query: str,
-        messages: list[dict[str, str]] | None = None,
-    ) -> list[dict[str, str]]:
-        messages = messages or []
+    def build_messages(self, user_query: str) -> list[dict[str, str]]:
+        try:
+            if not user_query:
+                raise ValueError("User query is required")
 
-        formatted_user_prompt = self.user_prompt.format(
-            user_query=user_query,
-        )
+            formatted_user_prompt = self.user_prompt.format(
+                user_query=user_query,
+            )
 
-        conversation_without_latest_user = messages[:-1]
-
-        return [
-            {"role": "system", "content": self.system_prompt},
-            *conversation_without_latest_user,
-            {"role": "user", "content": formatted_user_prompt},
-        ]
+            return [
+                {"role": "system", "content": self.system_prompt},
+                {"role": "user", "content": formatted_user_prompt},
+            ]
+        except Exception as e:
+            logging.error(f"Error building messages: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail="Error building messages",
+            )
 
 
     def generate_gemini_response(
@@ -192,7 +182,6 @@ class GenerateResponse:
         self,
         user_query: str,
         model: str | None = None,
-        messages: list[dict[str, str]] | None = None,
     ):
         model = model or self.model_name
 
@@ -202,16 +191,13 @@ class GenerateResponse:
                 detail=f"Model '{model}' not supported. Available: {sorted(self.models)}",
             )
 
-        provider_messages = self.build_messages(
-            user_query=user_query,
-            messages=messages,
-        )
+        messages = self.build_messages(user_query=user_query)
 
         if model.startswith("gemini"):
-            return self.generate_gemini_response(provider_messages, model=model)
+            return self.generate_gemini_response(messages, model=model)
 
         if model.startswith("gpt"):
-            return self.generate_openai_response(provider_messages, model=model)
+            return self.generate_openai_response(messages, model=model)
 
         if (
             model.startswith("mistral")
@@ -221,7 +207,7 @@ class GenerateResponse:
             or model.startswith("open-mistral-nemo")
             or model.startswith("devstral")
         ):
-            return self.generate_mistral_response(provider_messages, model=model)
+            return self.generate_mistral_response(messages, model=model)
 
         raise HTTPException(
             status_code=400,

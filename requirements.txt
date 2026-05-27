@@ -14,3 +14,5 @@ passlib
 python-jose
 pytest
 google-genai
+sentence-transformers
+torchvision
