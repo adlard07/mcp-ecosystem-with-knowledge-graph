@@ -8,6 +8,9 @@ class PreprocessQuery:
         self.generate_response = GenerateResponse()
         self.system_prompt = self.generate_response._load_prompt(self.prompt_path)
 
-    # def preprocess(self, query):
-        
-    #     return processed_query
+    def preprocess(self, query):
+        self.generate_response.set_system_prompt(self.system_prompt)
+        processed_query = self.generate_response.generate_response(query)
+        return processed_query
+    
+    

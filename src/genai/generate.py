@@ -47,8 +47,8 @@ class GenerateResponse:
             "gpt-4o-nano",
         }
 
-        self.system_prompt = self._load_prompt("prompts/agent_system_prompt.system.md")
-        self.user_prompt = self._load_prompt("prompts/agent_user_prompt.user.md")
+        # self.system_prompt = self._load_prompt("prompts/agent_system_prompt.system.md")
+        # self.user_prompt = self._load_prompt("prompts/agent_user_prompt.user.md")
 
 
     def _load_prompt(self, path: str) -> str:
@@ -66,14 +66,15 @@ class GenerateResponse:
     def __call__(self, state: ChatState) -> dict:
         query = state.get("query")
         model = state.get("model")
+        messages = state.get("chat_state") or []
 
         if not query:
             raise HTTPException(status_code=400, detail="Query is required")
 
-        response = self.generate_response(
-            user_query=query,
-            model=model,
-        )
+        if not messages:
+            messages = [{"role": "user", "content": query}]
+
+        response = self.generate_response(messages=messages, model=model)
 
         return {"response": response}
 
@@ -99,43 +100,29 @@ class GenerateResponse:
             )
 
 
-    def generate_gemini_response(
-        self,
-        messages: list[dict[str, str]],
-        model: str,
-    ):
+    def generate_gemini_response(self, messages, model):
         try:
             client = genai.Client(api_key=self.gemini_api_key)
 
-            system_instruction = messages[0]["content"]
-            conversation = messages[1:]
+            system_instruction = None
+            conversation = messages
+            if messages and messages[0]["role"] == "system":
+                system_instruction = messages[0]["content"]
+                conversation = messages[1:]
 
             contents = []
             for message in conversation:
                 role = "model" if message["role"] == "assistant" else "user"
-                contents.append(
-                    {
-                        "role": role,
-                        "parts": [{"text": message["content"]}],
-                    }
-                )
+                contents.append({"role": role, "parts": [{"text": message["content"]}]})
 
+            config = {"system_instruction": system_instruction} if system_instruction else None
             response = client.models.generate_content(
-                model=model,
-                contents=contents,
-                config={
-                    "system_instruction": system_instruction,
-                },
+                model=model, contents=contents, config=config
             )
-
             return response.text
-
         except Exception as e:
             logging.error(f"Error generating Gemini response: {e}")
-            raise HTTPException(
-                status_code=500,
-                detail="Error generating Gemini response",
-            )
+            raise HTTPException(status_code=500, detail="Error generating Gemini response")
 
 
     def generate_openai_response(
@@ -180,7 +167,7 @@ class GenerateResponse:
 
     def generate_response(
         self,
-        user_query: str,
+        messages: list[dict[str, str]],
         model: str | None = None,
     ):
         model = model or self.model_name
@@ -190,8 +177,6 @@ class GenerateResponse:
                 status_code=400,
                 detail=f"Model '{model}' not supported. Available: {sorted(self.models)}",
             )
-
-        messages = self.build_messages(user_query=user_query)
 
         if model.startswith("gemini"):
             return self.generate_gemini_response(messages, model=model)

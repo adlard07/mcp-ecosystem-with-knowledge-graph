@@ -3,6 +3,9 @@ from fastapi import APIRouter
 from src.models.main import AgentResponse
 from src.auth.api_keys.urls import router as api_keys_router
 from src.auth.user_auth.urls import router as auth_router
+from src.pipeline.preprocess_query import PreprocessQuery
+
+pq = PreprocessQuery()
 
 app = APIRouter()
 
@@ -19,7 +22,8 @@ def health_check():
 def agent_response(state: AgentResponse) -> dict:
     # agent response pipeline
     # query processing
-
+    processes_query = pq.preprocess(state.query)
+    
     # rag response 
     
     # tool calling
