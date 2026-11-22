@@ -1,31 +1,27 @@
-from fastapi import APIRouter
+"""FastAPI application entry point."""
 
-from src.models.main import AgentResponse
-from src.auth.api_keys.urls import router as api_keys_router
-from src.auth.user_auth.urls import router as auth_router
-from src.pipeline.preprocess_query import PreprocessQuery
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
-pq = PreprocessQuery()
-
-app = APIRouter()
-
-app.include_router(auth_router)
-app.include_router(api_keys_router)
+from src.auth.urls import router as auth_router
 
 
-@app.get("/", tags=["health"])
+app = FastAPI(title="Personal Knowledge Management System")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    # allow_headers=["Accept", "Authorization", "Content-Type", "Access-Control-Allow-Origin"],
+)
+
+@app.get("/health")
 def health_check():
-    return {"status": "ok"}
+    """Health check endpoint."""
+    return {"status": "ok"} 
 
 
-@app.post("/agent_response", tags=["agent"])
-def agent_response(state: AgentResponse) -> dict:
-    # agent response pipeline
-    # query processing
-    processes_query = pq.preprocess(state.query)
-    
-    # rag response 
-    
-    # tool calling
-    
-    return {"message": "Agent response received", "state": state.to_dict()}
+app.include_router(auth_router, prefix="/api")
+
+
+__all__ = ["app"]

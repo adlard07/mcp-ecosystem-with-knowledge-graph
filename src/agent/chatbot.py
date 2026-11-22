@@ -1,77 +1,70 @@
-from langgraph.graph import StateGraph, START, END
+from pathlib import Path
+from langgraph.graph import END as end, START as start, StateGraph
+from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
-from src.models.chatbot import OpenChatRequest, ChatState, ChatMessage
-from src.genai.generate import GenerateResponse
+from src.agent.llm_recall import LLMRecall
+from src.models.chatbot import ChatRequest, ChatResponse, ChatbotState
 
 
-class ChatAgent:
-    def __init__(self):
-        self.generate_response = GenerateResponse()
-        self.graph = self.build()
-        self.system_agent_prompt = self.generate_response._load_prompt("src/prompts/agent_system_prompt.system.md")
-        self.user_agent_prompt = self.generate_response._load_prompt("src/prompts/agent_user_prompt.system.md")
 
-    def build(self):
-        builder = StateGraph(ChatState)
-        builder.add_node("generate", self.generate_response)  # GenerateResponse.__call__ is the node
-        builder.add_edge(START, "generate")
-        builder.add_edge("generate", END)
+project_root = Path(__file__).resolve().parents[1]
+prompt_directory = project_root  # templates live at src/prompts/...
 
-        return builder.compile()
+class Chatbot:
+    """A small LangGraph workflow that generates one grounded response."""
 
-    def _generate(self, state: ChatState) -> dict:
-        # Adjust this call to match GenerateResponse's actual signature
-        response = self.generate_response.generate_response(
-            query=state["query"],
-            model=state["model"],
-            messages=state["chat_state"],
+    def __init__(self, llm_recall=None) -> None:
+        self.template_environment = Environment(
+            loader=FileSystemLoader(prompt_directory),
+            undefined=StrictUndefined,
+            autoescape=False,
         )
+        self.llm_recall = llm_recall or LLMRecall()
+        self.graph = self._build_graph()
+
+    def produce_system_prompt(self) -> str:
+        """Load the static system prompt and its safety guardrails."""
+        return self.template_environment.get_template(
+            "prompts/agent.prompt.system.md"
+        ).render()
+
+    def _build_graph(self):
+        workflow = StateGraph(ChatbotState)
+        workflow.add_node("generate_response", self._generate_response)
+        workflow.add_edge(start, "generate_response")
+        workflow.add_edge("generate_response", end)
+        return workflow.compile()
+
+    def _generate_response(self, state: ChatbotState) -> ChatbotState:
+        request = state["request"]
+        context = request.context.model_dump()
+        response = self.llm_recall.recall(
+            system_prompt=self.produce_system_prompt(), 
+            user_query=request.user_query, 
+            **context)
         return {"response": response}
 
-    def invoke(self, request: OpenChatRequest) -> ChatState:
-        if not request.messages:
-            raise ValueError("At least one message is required")
-
-        latest_message = request.messages[-1]
-
-        state: ChatState = {
-            "query": latest_message.content,
-            "model": request.model,
-            "chat_state": [
-                {"role": message.role, "content": message.content}
-                for message in request.messages
-            ],
-            "response": None,
-        }
-
-        return self.graph.invoke(state)
+    def invoke(self, request: ChatRequest) -> ChatResponse:
+        """Run the graph for a request and return the generated response."""
+        result = self.graph.invoke({"request": request})
+        return ChatResponse(user_query=request.user_query, response=result["response"])
 
 
 if __name__ == "__main__":
-    agent = ChatAgent()
-
-    messages: list[ChatMessage] = []
-
-    while True:
-        user_input = input("You: ")
-
-        if user_input.lower() in ["exit", "quit"]:
-            break
-
-        messages.append(ChatMessage(role="user", content=user_input))
-
-        request = OpenChatRequest(
-            user_id="user-123",
-            model="gemini-2.5-flash",
-            messages=messages,
+    chatbot = Chatbot()
+    for i in range(3):
+        user_query = input("Enter your query: ")
+        request = ChatRequest(
+            user_query=user_query,
+            context={
+                "personality": "friendly",
+                "profile": "A curious learner",
+                "preferences": "Concise answers",
+                "capabilities": "Answering questions",
+                "permissions": "Read-only",
+                "knowledge": "France is a country in Europe.",
+                "tools": "None",
+            },
         )
-
-        result = agent.invoke(request)
-
-        assistant_response = result["response"]
-        print(f"AI assistant: {assistant_response}")
-
-        messages.append(
-            ChatMessage(role="assistant", content=assistant_response)
-        )
-    print("Chat ended.")
+        response = chatbot.invoke(request)
+        print(response.response)

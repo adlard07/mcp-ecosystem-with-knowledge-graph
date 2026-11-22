@@ -1,24 +1,38 @@
-from typing import Optional
-from typing_extensions import TypedDict
+"""Data models used by the LangGraph chatbot."""
+
+from typing import Any, TypedDict
+
 from pydantic import BaseModel, Field
 
-from utils.utils import generate_uuid
+
+class ChatContext(BaseModel):
+    """Dynamic context supplied to the assistant for one request."""
+
+    personality: str = "Helpful and concise."
+    profile: str = ""
+    preferences: str = ""
+    capabilities: str = ""
+    permissions: str = "None"
+    knowledge: Any = ""
+    tools: Any = ""
 
 
-class ChatMessage(BaseModel):
-    role: str
-    content: str
+class ChatRequest(BaseModel):
+    """Input accepted by the chatbot."""
+
+    user_query: str = Field(min_length=1)
+    context: ChatContext = Field(default_factory=ChatContext)
 
 
-class OpenChatRequest(BaseModel):
-    chatbot_id: str = Field(default_factory=generate_uuid)
-    user_id: str
-    model: Optional[str] = None
-    messages: list[ChatMessage] = Field(default_factory=list)
+class ChatResponse(BaseModel):
+    """Chatbot response returned to the caller."""
+
+    user_query: str
+    response: str
 
 
-class ChatState(TypedDict, total=False):
-    query: str
-    response: Optional[str]
-    chat_state: list[dict[str, str]]
-    model: Optional[str]
+class ChatbotState(TypedDict, total=False):
+    """State passed between nodes in the chatbot graph."""
+
+    request: ChatRequest
+    response: str
