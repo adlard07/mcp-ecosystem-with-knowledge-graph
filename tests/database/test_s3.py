@@ -4,7 +4,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import ANY, MagicMock
 
-from src.database.s3 import S3Ops
+from src.database.s3_object import S3Ops
 
 
 class TestS3Ops(unittest.TestCase):

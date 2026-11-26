@@ -11,7 +11,7 @@ from typing import Any, Callable, Optional
 from jose import jwt
 from passlib.context import CryptContext
 
-from src.database.supabase import SupabaseOps
+from src.database.supabase_postgres import SupabaseOps
 from src.models.auth import (
     AuthenticationError,
     AuthenticationServiceError,

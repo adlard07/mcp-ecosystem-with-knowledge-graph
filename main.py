@@ -21,6 +21,12 @@ def health_check():
     return {"status": "ok"} 
 
 
+@app.get("/callback")
+def callback():
+    """Callback endpoint for OAuth2."""
+    return {"status": "ok"}
+
+
 app.include_router(auth_router, prefix="/api")
 
 

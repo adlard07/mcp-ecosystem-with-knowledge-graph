@@ -39,7 +39,13 @@
     
     
 ### Pipeline 
-User query -> query decomposition -> search tools and user data -> execute tools -> create response.
+    1. User Query (Query + conversation history)
+    2. Query Understanding (Intent classification · Task decomposition)
+    3. Retrieval Router (Decide which memory sources and tools are required) -> [Structured DB (Facts), Vector / Search (Knowledge), MCP Tools (External data)]
+    4. Context Construction (Filter · Deduplicate · Rank · Assemble relevant context)
+    5. Execution / Reasoning (Answer questions or execute authorized actions)
+    6. Response Validation (Check relevance · Accuracy · Permissions · Sources)
+    7. Response Generation (Answer with references and citations)
 
 
 ### Optimization
@@ -53,3 +59,13 @@ User query -> query decomposition -> search tools and user data -> execute tools
     8. Pagination & Field Filtering: Never return 10,000 rows or massive objects when the UI only needs 20 items and three fields.
     9. Load Balancing: Distributing incoming traffic across multiple identical server instances (using NGINX, AWS ALB, or Cloudflare) prevents any single server from getting overwhelmed and allows you to scale horizontally.
     10. Circuit Breaker Pattern: If a downstream service or database is struggling, repeatedly retrying failed requests only makes it worse. A circuit breaker temporarily stops sending requests to the failing service for a few seconds, returning a quick fallback error so the system has time to recover.
+
+
+### Observability
+    1. Retrieval latency.
+    2. LLM latency and token consumption.
+    3. MCP tool failures.
+    4. Cache hit rate.
+    5. Retrieval relevance.
+    6. End-to-end response time.
+    

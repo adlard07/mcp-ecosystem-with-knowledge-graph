@@ -7,6 +7,8 @@ from dotenv import load_dotenv
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 from openai import OpenAI
 
+from src.database.supabase_postgres import SupabaseOps
+
 load_dotenv()
 
 project_root = Path(__file__).resolve().parents[1]
@@ -25,12 +27,15 @@ class LLMRecall:
             api_key=api_key,
             base_url="https://api.groq.com/openai/v1",
         )
+        self.decomposer = None
         self.model = model or os.getenv("MODEL_NAME", "openai/gpt-oss-20b")
         self.template_environment = Environment(
             loader=FileSystemLoader(prompt_directory),
             undefined=StrictUndefined,
             autoescape=False,
         )
+        self.supabase_conn = SupabaseOps()
+
 
     def produce_user_prompt(self, **context: Any) -> str:
         """Render the per-user prompt from the supplied dynamic context."""
@@ -52,22 +57,22 @@ class LLMRecall:
             "prompts/agent.prompt.user_personality.md"
         ).render(**context)
         
-    def decompose_query(self, user_query: str, tools: Any) -> dict[str, Any]:
-        """Break a query into intent, questions, tools, and an answer plan."""
+    def decompose_query(self, user_query: str, user_personality_context: Any) -> dict[str, Any]:
+        """Break a query into intent, questions, user_personality_context, and an answer plan."""
         if self.decomposer:
-            decomposition = self.decomposer(user_query, tools)
+            decomposition = self.decomposer(user_query, user_personality_context)
         else:
             prompt = self.template_environment.get_template(
                 "prompts/agent.prompt.query_decomposition.md"
-            ).render(user_query=user_query, tools=tools)
+            ).render(user_query=user_query, user_personality_context=user_personality_context)
             result = self.client.chat.completions.create(
                 model=self.model,
                 temperature=0,
                 messages=[{"role": "user", "content": prompt}],
             )
             decomposition = json.loads(result.choices[0].message.content or "{}")
+        # self._validate_decomposition(decomposition)
 
-        self._validate_decomposition(decomposition)
         return decomposition
 
     def recall(self, system_prompt, user_query: str, **context: Any) -> str:
@@ -85,3 +90,20 @@ class LLMRecall:
             ],
         )
         return response.choices[0].message.content or ""
+
+    
+    def _fetch_user_context(self, user_id: str) -> dict[str, Any]:
+        """Fetch the user context from a database or other source."""
+        return self.supabase_conn.fetch(table="user_context", filters={"user_id": user_id})
+
+
+    @staticmethod
+    def _validate_decomposition(decomposition: Any) -> None:
+        required_keys = {"intent", "questions", "tools", "response"}
+        if not isinstance(decomposition, dict) or set(decomposition) != required_keys:
+            raise ValueError("Query decomposition must contain intent, questions, tools, and response.")
+        if not isinstance(decomposition["questions"], list):
+            raise ValueError("Query decomposition questions must be a list.")
+        if not isinstance(decomposition["tools"], list):
+            raise ValueError("Query decomposition tools must be a list.")
+        

@@ -3,7 +3,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import MagicMock
 
-from src.ingestion.ingest_data import Objects
+from src.router.ingest_data import Objects
 
 
 class TestObjects(unittest.TestCase):

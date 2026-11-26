@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import MagicMock
 
-from src.database.pinecone import PinconeOps
+from src.database.pinecone_vector import PinconeOps
 
 
 class TestPinconeOps(unittest.TestCase):
@@ -11,9 +11,9 @@ class TestPinconeOps(unittest.TestCase):
         self.ops = PinconeOps(index_name="knowledge", pinecone_client=self.client)
 
     def test_upsert_fetch_update_and_delete(self) -> None:
-        vectors = [{"id": "note-1", "values": [0.1, 0.2]}]
+        records = [{"id": "note-1", "text": "Journal entry"}]
 
-        self.ops.upsert(vectors, namespace="notes")
+        self.ops.upsert(records, namespace="notes")
         self.ops.fetch(["note-1"], namespace="notes")
         self.ops.update(
             "note-1",
@@ -24,7 +24,10 @@ class TestPinconeOps(unittest.TestCase):
         self.ops.delete(ids=["note-1"], namespace="notes")
 
         self.client.Index.assert_called_once_with(name="knowledge", host="")
-        self.index.upsert.assert_called_once_with(vectors=vectors, namespace="notes")
+        self.index.upsert_records.assert_called_once_with(
+            records=[{"_id": "note-1", "text": "Journal entry"}],
+            namespace="notes",
+        )
         self.index.fetch.assert_called_once_with(ids=["note-1"], namespace="notes")
         self.index.update.assert_called_once_with(
             id="note-1",

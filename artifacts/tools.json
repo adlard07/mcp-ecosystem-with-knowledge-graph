@@ -1,0 +1,30 @@
+
+{
+  "tools": [
+    {
+      "tool_name": "gmail_search",
+      "tool_description": "Search and retrieve email conversations.",
+      "tool_keywords": [
+        "email",
+        "gmail",
+        "inbox",
+        "messages",
+        "communication"
+      ],
+      "category": "communication",
+      "use_cases": [
+        "Find an email",
+        "Send an email",
+        "Retrieve a conversation",
+        "Search correspondence with a person"
+      ],
+      "input_schema": {
+        "query": "string"
+      },
+      "source": "gmail",
+      "access_type": ["read", "write"],
+      "requires_approval": true,
+      "enabled": true
+    }
+  ]
+}

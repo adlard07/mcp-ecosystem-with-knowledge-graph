@@ -12,7 +12,7 @@ from src.auth.auth import (
 from src.auth.login import login
 from src.auth.signin import signin
 from src.auth.signup import signup
-from src.database.supabase import SupabaseOps
+from src.database.supabase_postgres import SupabaseOps
 from src.models.auth import EmailAlreadyRegisteredError, InvalidSignupDataError
 
 

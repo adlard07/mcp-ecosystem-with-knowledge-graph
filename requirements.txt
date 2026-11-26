@@ -1,7 +1,7 @@
 langgraph
 psycopg2-binary
 boto3
-pinecone
+pinecone>=10,<11
 fastapi
 openai
 mistralai
@@ -14,5 +14,8 @@ passlib
 python-jose
 pytest
 google-genai
+google-api-python-client
+google-auth
+mcp>=2,<3
 sentence-transformers
 torchvision
